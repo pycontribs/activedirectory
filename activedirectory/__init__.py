@@ -13,3 +13,4 @@ import sys
 if sys.hexversion < 0x02050000:
     sys.exit("Python 2.5 or newer is required by tendo module.")
 
+from activedirectory import ActiveDirectory
