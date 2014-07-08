@@ -234,7 +234,6 @@ class ActiveDirectory(object):
         if not r:
             return None
         # print(r[0])
-        Name, Attrs = r[0]
         Name = r[0]['dn']
         Attrs = r[0]['attributes']
         for attribute in attributes:
