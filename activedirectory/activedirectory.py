@@ -167,7 +167,7 @@ class ActiveDirectory(object):
     def get_managers(self):
         filter = "(&%s(sAMAccountName=*)(manager=*))" % self.filter
         result = {}
-        for r in self.search_ext_s(filter_str=filter, attrlist=['sAMAccountName', "manager"]):
+        for r in self.search_ext_s(filterstr=filter, attrlist=['sAMAccountName', "manager"]):
             user = self.get_username(dn=r['dn'])
             manager = self.get_username(dn=r['attributes']['manager'][0])
             if user is None or manager is None:
@@ -178,7 +178,7 @@ class ActiveDirectory(object):
     def get_users(self):
         filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)(mail=*))" % self.filter
         rets = []
-        for x in self.search_ext_s(filter_str=filter, attrlist=["sAMAccountName"]):
+        for x in self.search_ext_s(filterstr=filter, attrlist=["sAMAccountName"]):
         # if ret and ret[0] and isinstance(ret[0][1], dict):
             rets.append(x['attributes']["sAMAccountName"][0])
         return sorted(set(rets))
@@ -190,7 +190,7 @@ class ActiveDirectory(object):
         """
         filter = "(&(objectCategory=group)(mail=*))"
         rets = []
-        for x in self.search_ext_s(filter_str=filter, attrlist=["sAMAccountName"]):
+        for x in self.search_ext_s(filterstr=filter, attrlist=["sAMAccountName"]):
         # if ret and ret[0] and isinstance(ret[0][1], dict):
             rets.append(x[1].get("sAMAccountName")[0])
         return sorted(rets)
@@ -235,6 +235,8 @@ class ActiveDirectory(object):
             return None
         # print(r[0])
         Name, Attrs = r[0]
+        Name = r[0]['dn']
+        Attrs = r[0]['attributes']
         for attribute in attributes:
             if hasattr(Attrs, 'has_key') and attribute in Attrs:
                 res[attribute] = Attrs[attribute][0]
