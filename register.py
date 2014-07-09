@@ -6,13 +6,13 @@ import logging
 #pandoc.core.PANDOC_PATH = 'python -m pandoc'
 
 try:
-   import pypandoc
-   description = pypandoc.convert('README.md', 'rst')
+    import pypandoc
+    description = pypandoc.convert('README.md', 'rst')
 except (IOError, ImportError) as e:
-   logging.warn(e)
-   description = open('README.md').read()
+    logging.warn(e)
+    description = open('README.md').read()
 
-f = open('README.txt','w+')
+f = open('README.txt', 'w+')
 f.write(description)
 f.close()
 

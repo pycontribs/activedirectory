@@ -9,9 +9,11 @@ import unittest
 from collections import defaultdict
 from urlparse import urlparse
 import ldap3
+from ldap3.utils.conv import escape_bytes
 
 
 class ActiveDirectory(object):
+
     @staticmethod
     def factory(section, debug=False):
         config = ConfigParser.RawConfigParser()
@@ -30,7 +32,7 @@ class ActiveDirectory(object):
     def reconnect(self):
         self.__init__(self.url, self.dn, self.secret, base=self.base)
 
-    def __init__(self, url, dn=None, secret=None, base="", debug=False, paged_size = 1000, size_limit=0):
+    def __init__(self, url, dn=None, secret=None, base="", debug=False, paged_size=1000, size_limit=0):
         """
         @param server: url of LDAP Server
         @param dn: username of the service account
@@ -71,8 +73,8 @@ class ActiveDirectory(object):
 
         self.server = ldap3.Server(host=u.hostname, port=u.port, use_ssl=use_ssl)
         self.conn = ldap3.Connection(self.server,
-                                     auto_bind = True,
-                                     client_strategy = ldap3.STRATEGY_SYNC,
+                                     auto_bind=True,
+                                     client_strategy=ldap3.STRATEGY_SYNC,
                                      user=dn,
                                      password=secret,
                                      authentication=ldap3.AUTH_SIMPLE)
@@ -98,7 +100,7 @@ class ActiveDirectory(object):
         if self.conn:
             self.conn.unbind()
 
-    def search_ext_s(self, filterstr=None, attrlist=None, base=None, scope=None):
+    def search_ext_s(self, filterstr=None, attrlist=ldap3.ALL_ATTRIBUTES, base=None, scope=None):
         """
 
         :rtype : object
@@ -111,7 +113,7 @@ class ActiveDirectory(object):
             scope = self.scope
 
         self.conn.search(
-            base,
+            search_base=base,
             search_filter=filterstr,
             search_scope=scope,
             attributes=attrlist,
@@ -127,13 +129,13 @@ class ActiveDirectory(object):
         total_entries += len(self.conn.response)
         while cookie:
             self.conn.search(
-                    self.base,
-                    search_scope=self.scope,
-                    search_filter=filterstr,
-                    attributes=attrlist,
-                    paged_size=self.paged_size,
-                    paged_cookie=cookie
-                )
+                search_base=base,
+                search_filter=filterstr,
+                search_scope=scope,
+                attributes=attrlist,
+                paged_size=self.paged_size,
+                paged_cookie=cookie
+            )
             if self.conn.result['description'] == 'sizeLimitExceeded':
                 cookie = None
             else:
@@ -143,7 +145,7 @@ class ActiveDirectory(object):
 
         # FIX for Microsoft bug: ldap.UNAVAILABLE_CRITICAL_EXTENSION: {'info': '00002040: SvcErr: DSID-031401E7, problem 5010 (UNAVAIL_EXTENSION), data 0\n', 'desc': 'Critical extension is unavailable'}
         # explain: second pagination query fails, so after a query we will establish a new connection to the server.
-        #if pages > 1:
+        # if pages > 1:
         #    self.reconnect()
         # ret = self.conn.search_ext_s(*args)
         return ret
@@ -157,17 +159,22 @@ class ActiveDirectory(object):
         return d
 
     def get_manager(self, user):
+        """
+
+        :param user: sAMAccountName of the user
+        :return: sAMAccountName of the manager or None
+        """
         filter = "(&%s(sAMAccountName=%s))" % (self.filter, user)
         ret = self.search_ext_s(filter, ["manager"])
-        if ret and ret[0] and isinstance(ret[0][1], dict):
-            ret = ret[0][1].get("manager")
+        if ret and ret[0] and ret[0]['attributes']['manager']:
+            ret = ret[0]['attributes']['manager'][0]
             if ret:
-                return ActiveDirectory.decode_cn(ret[0])
+                return self.get_username(dn=ret)
 
     def get_managers(self):
         filter = "(&%s(sAMAccountName=*)(manager=*))" % self.filter
         result = {}
-        for r in self.search_ext_s(filter_str=filter, attrlist=['sAMAccountName', "manager"]):
+        for r in self.search_ext_s(filterstr=filter, attrlist=['sAMAccountName', "manager"]):
             user = self.get_username(dn=r['dn'])
             manager = self.get_username(dn=r['attributes']['manager'][0])
             if user is None or manager is None:
@@ -178,8 +185,8 @@ class ActiveDirectory(object):
     def get_users(self):
         filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)(mail=*))" % self.filter
         rets = []
-        for x in self.search_ext_s(filter_str=filter, attrlist=["sAMAccountName"]):
-        # if ret and ret[0] and isinstance(ret[0][1], dict):
+        for x in self.search_ext_s(filterstr=filter, attrlist=["sAMAccountName"]):
+            # if ret and ret[0] and isinstance(ret[0][1], dict):
             rets.append(x['attributes']["sAMAccountName"][0])
         return sorted(set(rets))
 
@@ -191,7 +198,7 @@ class ActiveDirectory(object):
         filter = "(&(objectCategory=group)(mail=*))"
         rets = []
         for x in self.search_ext_s(filter_str=filter, attrlist=["sAMAccountName"]):
-        # if ret and ret[0] and isinstance(ret[0][1], dict):
+            # if ret and ret[0] and isinstance(ret[0][1], dict):
             rets.append(x[1].get("sAMAccountName")[0])
         return sorted(rets)
 
@@ -204,8 +211,7 @@ class ActiveDirectory(object):
 
     @staticmethod
     def escaped(query):
-        return query
-        #return ldap.filter.escape_filter_chars(query)
+        return escape_bytes(query)
 
     def get_attributes(self, attributes=None, user=None, email=None, name=None):
         if user is None and email is None and name is None:
@@ -261,11 +267,19 @@ class ActiveDirectory(object):
         elif email:
             filter = "(&%s(|(mail=%s)(proxyAddresses=smtp:%s)))" % (self.filter, self.escaped(email), self.escaped(email))
 
-        #self.logger.debug(filter)
         if dn:
-            filter = "(&%s(sAMAccountName=*))" % self.filter
-            r = self.search_ext_s( base=dn, scope=ldap3.SEARCH_SCOPE_BASE_OBJECT)
-            # filter, [attribute]
+            #filter = "(&%s(sAMAccountName=*))" % self.escaped(self.filter)
+            try:
+                # TODO: it seems that if we specify attrilist = ['manager'] or just 'manager ' it will fail
+                # This seems like a bug in ldap3 to me.
+                #r = self.search_ext_s(base=dn, scope=ldap3.SEARCH_SCOPE_BASE_OBJECT, filterstr='(objectClass=*)', attrlist=[attribute])
+                r = self.search_ext_s(base=dn, scope=ldap3.SEARCH_SCOPE_BASE_OBJECT, filterstr='(objectClass=*)')
+                if len(r) > 1:
+                    raise NotImplementedError("getAttribute does not support returning attribute for multiple entities")
+                return r[0]['attributes'][attribute][0]
+                # filter, [attribute]
+            except Exception as e:
+                raise e
         else:
             r = self.search_ext_s(filterstr=filter, attrlist=[attribute])
 
@@ -274,7 +288,7 @@ class ActiveDirectory(object):
         # if not user or not r or len(r) != 1:
         #    return None
         if attribute in r[0]['attributes']:
-            return r[0]['attributes'][attribute][0] # display name is returned as a list
+            return r[0]['attributes'][attribute][0]  # display name is returned as a list
         else:
             logging.error("xxx")
 
@@ -283,9 +297,9 @@ class ActiveDirectory(object):
 
     def get_username(self, user=None, dn=None):
         if user:
-            return self.get_attribute('sAMAaccount', user=user)
+            return self.get_attribute('sAMAccountName', user=user)
         elif dn:
-            return self.get_attribute('sAMAaccount', dn=dn)
+            return self.get_attribute('sAMAccountName', dn=dn)
         else:
             NotImplementedError()
 
@@ -297,7 +311,7 @@ class ActiveDirectory(object):
         return r[0]['dn']
 
     def get_email(self, user=None):
-        return self.get_attribute('mail', user=user)
+        return self.get_attribute(attribute='mail', user=user)
 
     def is_user_enabled(self, user):
         ret = None
@@ -323,23 +337,38 @@ class ActiveDirectory(object):
 
 
 class ActiveDirectoryTestCase(unittest.TestCase):
+
     def setUp(self):
         # "ldap://ldap.forumsys.com:389", "cn=read-only-admin,dc=example,dc=com", "password"
 
-        directory = "ldap://ldap.forumsys.com:389"
-        self.ad = ActiveDirectory(directory, dn='cn=read-only-admin,dc=example,dc=com', secret='password', size_limit=50)
+        #directory = "ldap://ldap.forumsys.com:389"
+        #self.ad = ActiveDirectory(directory, dn='cn=read-only-admin,dc=example,dc=com', secret='password', size_limit=50)
+        self.ad = ActiveDirectory("ldaps://lonpdc01.citrite.net:3269/citrite,dc=net", size_limit=2)
+
+        #self.ad = ActiveDirectory("ldaps://pycontribs.onmicrosoft.com:3269", dn="john@pycontribs.onmicrosoft.com", secret="Gunu4138", size_limit=2)
 
     def test_get_name(self):
-        self.assertEqual(self.ad.get_name('gauss'), 'Sorin Sbârnea')
+        self.assertEqual(self.ad.get_name('sorins'), 'Sorin Sbârnea')
+
+    def test_get_name2(self):
+        # this one tests special characters that do need to be properly escaped
+        self.assertEqual(self.ad.get_name('_6363 Conf. 2033 (14'), '_6363 Conf. 2033_The Atrium (14)')
 
     def test_get_email(self):
-        self.assertEqual(self.ad.get_email('gauss'), 'sorin.sbarnea@citrix.com')
+        # getting email of non existing account should return none
+        self.assertEqual(self.ad.get_email('xcxsfscbr33g'), None)
+
+    def test_get_email(self):
+        self.assertEqual(self.ad.get_email('noreply@citrix.com'), 'noreply@citrix.com')
+
+    def test_get_manager(self):
+        self.assertEqual(self.ad.get_manager('svcacct_scale'), 'benha')
 
     def test_get_users(self):
         self.ad.get_users()
 
     def test_is_user_enabled(self):
-        self.assertTrue(self.ad.is_user_enabled('gauss'))
+        self.assertTrue(self.ad.is_user_enabled('sorins'))
 
     def test_is_user_enabled_non_existing(self):
         self.assertTrue(self.ad.is_user_enabled('sdsECGCCgcreRHdrsrdhd') is None)
@@ -355,8 +384,6 @@ if __name__ == "__main__":
     else:
         directory = sys.argv[1]
     logging.info("--- %s ---" % directory)
-
-
 
     unittest.main()
 
