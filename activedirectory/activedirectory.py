@@ -239,7 +239,7 @@ class ActiveDirectory(object):
                     try:
                         result[k] = v[0].decode('utf-8')
                     except Exception as e:
-                        print("FAILED: %s : %s -- %s" % (k,v[0], e))
+                        print("FAILED: %s : %s -- %s" % (k, v[0], e))
         return result
 
     def get_attributes(self, attributes=None, user=None, email=None, name=None):
@@ -371,7 +371,7 @@ class ActiveDirectoryTestCase(unittest.TestCase):
 
         #directory = "ldap://ldap.forumsys.com:389"
         #self.ad = ActiveDirectory(directory, dn='cn=read-only-admin,dc=example,dc=com', secret='password', size_limit=50)
-        self.ad = ActiveDirectory("ldaps://lonpdc01.citrite.net:3269/citrite,dc=net", size_limit=self.size_limit, paged_size=self.paged_size, time_limit=self.time_limit )
+        self.ad = ActiveDirectory("ldaps://lonpdc01.citrite.net:3269/citrite,dc=net", size_limit=self.size_limit, paged_size=self.paged_size, time_limit=self.time_limit)
 
         #self.ad = ActiveDirectory("ldaps://pycontribs.onmicrosoft.com:3269", dn="john@pycontribs.onmicrosoft.com", secret="Gunu4138", size_limit=2)
 
