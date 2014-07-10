@@ -138,14 +138,15 @@ class ActiveDirectory(object):
                 time_limit=self.time_limit,
                 paged_cookie=cookie
             )
-            if self.conn.result['description'] == 'sizeLimitExceeded':
+            if self.conn.result['description'] == 'sizeLimitExceeded' or 'controls' not in self.conn.result:
+                logging.error("sizeLimitExceeded")
                 cookie = None
             else:
                 cookie = self.conn.result['controls']['1.2.840.113556.1.4.319']['value']['cookie']
             total_entries += len(self.conn.response)
             ret.extend(self.conn.response)
-            if len(ret) >= self.size_limit:
-                break
+            if self.size_limit and len(ret) >= self.size_limit:
+                return ret[:self.size_limit]
 
         # FIX for Microsoft bug: ldap.UNAVAILABLE_CRITICAL_EXTENSION: {'info': '00002040: SvcErr: DSID-031401E7, problem 5010 (UNAVAIL_EXTENSION), data 0\n', 'desc': 'Critical extension is unavailable'}
         # explain: second pagination query fails, so after a query we will establish a new connection to the server.
@@ -364,7 +365,7 @@ class ActiveDirectory(object):
 class ActiveDirectoryTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.size_limit = 10
+        self.size_limit = 5
         self.paged_size = 2
         self.time_limit = 60
         # "ldap://ldap.forumsys.com:389", "cn=read-only-admin,dc=example,dc=com", "password"
