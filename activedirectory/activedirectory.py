@@ -170,7 +170,7 @@ class ActiveDirectory(object):
         """
         filter = "(&%s(sAMAccountName=%s))" % (self.filter, user)
         ret = self.search_ext_s(filter, ["manager"])
-        if ret and ret[0] and ret[0]['attributes']['manager']:
+        if ret and ret[0] and 'manager' in ret[0]['attributes'] and ret[0]['attributes']['manager']:
             ret = ret[0]['attributes']['manager'][0]
             if ret:
                 return self.get_username(dn=ret)
@@ -396,6 +396,10 @@ class ActiveDirectoryTestCase(unittest.TestCase):
     def test_get_users(self):
         users = self.ad.get_users()
         self.assertEqual(len(users), self.size_limit)
+
+    def test_get_manager_unicode(self):
+        x = self.ad.get_manager(u"_Paris vidéo p-1")
+        self.assertEqual(x, None)
 
     def test_is_user_enabled(self):
         self.assertTrue(self.ad.is_user_enabled('sorins'))
