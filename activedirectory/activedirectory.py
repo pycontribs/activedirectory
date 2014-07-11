@@ -187,8 +187,11 @@ class ActiveDirectory(object):
             result[user] = manager
         return result
 
-    def get_users(self):
-        filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)(mail=*))" % self.filter
+    def get_users(self, new_filter = None):
+        if new_filter:
+            filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)(mail=*)%s)" % (self.filter, new_filter)
+        else:
+            filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)(mail=*))" % self.filter
         rets = []
         for x in self.search_ext_s(filterstr=filter, attrlist=["sAMAccountName"]):
             # if ret and ret[0] and isinstance(ret[0][1], dict):
@@ -269,7 +272,7 @@ class ActiveDirectory(object):
             raise NotImplementedError("getAttributes does not support returning values for multiple ldap objects")
 
         # print(r[0])
-        return self.__compress_attributes(r[0]['attributes'])
+        return r[0]['attributes']
 
     def get_attribute(self, attribute='sAMAccountName', user=None, email=None, name=None, dn=None):
         """
@@ -398,6 +401,10 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         users = self.ad.get_users()
         self.assertEqual(len(users), self.size_limit)
 
+    def test_get_users_new_filter(self):
+        users = self.ad.get_users(new_filter = '(mail=bogdan.marchis@citrix.com)')
+        self.assertEqual(users[0], 't_bogdanma')
+
     def test_get_manager_unicode(self):
         x = self.ad.get_manager(u"_Paris vidéo p-1")
         self.assertEqual(x, None)
@@ -418,9 +425,11 @@ if __name__ == "__main__":
 
     logging.basicConfig(format='%(levelname)s %(message)s', level=logging.DEBUG)
 
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 2 and not "LDAP_URI" in os.environ:
         logging.error("Please specify the URI of the LDAP server to connect to.")
         sys.exit(2)
+    elif 'LDAP_URI' in os.environ:
+        directory = os.environ['LDAP_URI']
     else:
         directory = sys.argv[1]
     logging.info("--- %s ---" % directory)
