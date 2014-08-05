@@ -78,7 +78,6 @@ class ActiveDirectory(object):
                                      authentication=ldap3.AUTH_SIMPLE)
         try:
             ret = self.conn.bind()
-            #ret = self.conn.simple_bind_s(self.dn, self.secret)
         except Exception, e:
             self.logger.error(e)
         else:
@@ -187,7 +186,7 @@ class ActiveDirectory(object):
             result[user] = manager
         return result
 
-    def get_users(self, new_filter = None):
+    def get_users(self, new_filter=None):
         if new_filter:
             filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)(mail=*)%s)" % (self.filter, new_filter)
         else:
@@ -266,13 +265,13 @@ class ActiveDirectory(object):
         self.logger.debug("%s : %s" % (filter, attributes))
         r = self.search_ext_s(filterstr=filter, attrlist=attributes)
         if not r:
-            return None
+            return {}
 
         if len(r) != 1:
             raise NotImplementedError("getAttributes does not support returning values for multiple ldap objects")
 
         # print(r[0])
-        return r[0]['attributes']
+        return self.__compress_attributes(r[0]['attributes'])
 
     def get_attribute(self, attribute='sAMAccountName', user=None, email=None, name=None, dn=None):
         """
@@ -297,11 +296,9 @@ class ActiveDirectory(object):
             filter = "(&%s(|(mail=%s)(proxyAddresses=smtp:%s)))" % (self.filter, self.escaped(email), self.escaped(email))
 
         if dn:
-            #filter = "(&%s(sAMAccountName=*))" % self.escaped(self.filter)
             try:
                 # TODO: it seems that if we specify attrilist = ['manager'] or just 'manager ' it will fail
                 # This seems like a bug in ldap3 to me.
-                #r = self.search_ext_s(base=dn, scope=ldap3.SEARCH_SCOPE_BASE_OBJECT, filterstr='(objectClass=*)', attrlist=[attribute])
                 r = self.search_ext_s(base=dn, scope=ldap3.SEARCH_SCOPE_BASE_OBJECT, filterstr='(objectClass=*)')
                 if len(r) > 1:
                     raise NotImplementedError("getAttribute does not support returning attribute for multiple entities")
@@ -371,13 +368,8 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         self.size_limit = 5
         self.paged_size = 2
         self.time_limit = 60
-        # "ldap://ldap.forumsys.com:389", "cn=read-only-admin,dc=example,dc=com", "password"
 
-        #directory = "ldap://ldap.forumsys.com:389"
-        #self.ad = ActiveDirectory(directory, dn='cn=read-only-admin,dc=example,dc=com', secret='password', size_limit=50)
         self.ad = ActiveDirectory("ldaps://lonpdc01.citrite.net:3269/citrite,dc=net", size_limit=self.size_limit, paged_size=self.paged_size, time_limit=self.time_limit)
-
-        #self.ad = ActiveDirectory("ldaps://pycontribs.onmicrosoft.com:3269", dn="john@pycontribs.onmicrosoft.com", secret="Gunu4138", size_limit=2)
 
     def test_get_name(self):
         name = self.ad.get_name('sorins')
@@ -402,7 +394,7 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         self.assertEqual(len(users), self.size_limit)
 
     def test_get_users_new_filter(self):
-        users = self.ad.get_users(new_filter = '(mail=bogdan.marchis@citrix.com)')
+        users = self.ad.get_users(new_filter='(mail=bogdan.marchis@citrix.com)')
         self.assertEqual(users[0], 't_bogdanma')
 
     def test_get_manager_unicode(self):
@@ -420,12 +412,18 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         self.assertEqual(user['displayName'], u'Sorin Sbârnea')
         self.assertEqual(user['name'], u'Sorin Sbârnea')
 
+    def test_get_attributes_multiple(self):
+        user = self.ad.get_attributes(user='adm_gregsl')
+        self.assertEqual(user['displayName'], u'Sorin Sbârnea')
+        self.assertEqual(user['name'], u'Sorin Sbârnea')
+
+
 if __name__ == "__main__":
     import sys
 
     logging.basicConfig(format='%(levelname)s %(message)s', level=logging.DEBUG)
 
-    if len(sys.argv) < 2 and not "LDAP_URI" in os.environ:
+    if len(sys.argv) < 2 and "LDAP_URI" not in os.environ:
         logging.error("Please specify the URI of the LDAP server to connect to.")
         sys.exit(2)
     elif 'LDAP_URI' in os.environ:

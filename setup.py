@@ -107,7 +107,7 @@ setup(
         'Topic :: Internet',
     ],
     long_description=open('README.md').read(),
-    setup_requires=['six', 'tox'],  # ,'nosexcover'],
+    setup_requires=['six', 'tox', 'python3-ldap'],  # ,'nosexcover'],
     tests_require=test_requirements,  # autopep8 removed because it does not install on python2.5
     test_suite=test_suite,
     cmdclass={'test': Tox},
