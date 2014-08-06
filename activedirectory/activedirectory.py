@@ -2,18 +2,23 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from __future__ import print_function
-import ConfigParser
 import logging
 import os
 import traceback
 import types
 import unittest
 from collections import defaultdict
-from urlparse import urlparse
 import ldap3
 from ldap3.utils.conv import escape_bytes
 from ldap3.protocol.rfc4511 import SearchRequest, ValsAtLeast1, Scope, Integer0ToMax, TypesOnly, Filter, AttributeSelection, Selector, EqualityMatch
-
+try:
+    import configparser
+except:
+    from six.moves import configparser
+try:
+    from urlparse import urlparse
+except:
+    from urllib.parse import urlparse
 
 class ActiveDirectory(object):
 
@@ -63,11 +68,15 @@ class ActiveDirectory(object):
             u.hostname = u.hostname.split(":")[0]
         if dn is None:
             import netrc
-            netrc_config = netrc.netrc()
-            for h in netrc_config.hosts:
-                if h == u.hostname:
-                    dn, account, secret = netrc_config.authenticators(h)
-                    break
+            try:
+                netrc_config = netrc.netrc()
+                for h in netrc_config.hosts:
+                    if h == u.hostname:
+                        dn, account, secret = netrc_config.authenticators(h)
+                        break
+            except Exception as e:
+                logging.warning("~/.netrc ignored due to: %s" % e)
+        print(u.port, u.hostname)
 
         self.server = ldap3.Server(host=u.hostname, port=u.port, use_ssl=use_ssl)
         self.conn = ldap3.Connection(self.server,
@@ -78,7 +87,7 @@ class ActiveDirectory(object):
                                      authentication=ldap3.AUTH_SIMPLE)
         try:
             ret = self.conn.bind()
-        except Exception, e:
+        except Exception as e:
             self.logger.error(e)
         else:
             self._connected = True
@@ -93,9 +102,9 @@ class ActiveDirectory(object):
     def check_credentials(url, dn, secret, base=""):
         raise NotImplementedError()
 
-    def __del__(self):
-        if self.conn:
-            self.conn.unbind()
+    #def __del__(self):
+    #    if self.conn:
+    #        self.conn.unbind()
 
     def search_ext_s(self, filterstr=None, attrlist=ldap3.ALL_ATTRIBUTES, base=None, scope=None):
         """
@@ -369,15 +378,20 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         self.paged_size = 2
         self.time_limit = 60
 
-        self.ad = ActiveDirectory("ldaps://lonpdc01.citrite.net:3269/citrite,dc=net", size_limit=self.size_limit, paged_size=self.paged_size, time_limit=self.time_limit)
+        self.ad = ActiveDirectory("ldaps://sorintest.cloudapp.net",
+                                  dn='john.doe',
+                                  secret='a3sv42vAS2vl',
+                                  size_limit=self.size_limit,
+                                  paged_size=self.paged_size,
+                                  time_limit=self.time_limit)
 
     def test_get_name(self):
-        name = self.ad.get_name('sorins')
-        self.assertEqual(name, u'Sorin Sbârnea')
+        name = self.ad.get_name('john.doe')
+        self.assertEqual(name, u'John Doe')
 
     def test_get_name2(self):
         # this one tests special characters that do need to be properly escaped
-        self.assertEqual(self.ad.get_name('_6363 Conf. 2033 (14'), '_6363 Conf. 2033_The Atrium (14)')
+        self.assertEqual(self.ad.get_name('tester'), 'Eşcâpe Tester (./\@$#)')
 
     def test_get_email_invalid(self):
         # getting email of non existing account should return none
@@ -394,8 +408,8 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         self.assertEqual(len(users), self.size_limit)
 
     def test_get_users_new_filter(self):
-        users = self.ad.get_users(new_filter='(mail=bogdan.marchis@citrix.com)')
-        self.assertEqual(users[0], 't_bogdanma')
+        users = self.ad.get_users(new_filter='(mail=god@ad.sbarnea.com)')
+        self.assertEqual(users[0], 'god')
 
     def test_get_manager_unicode(self):
         x = self.ad.get_manager(u"_Paris vidéo p-1")
@@ -423,15 +437,4 @@ if __name__ == "__main__":
 
     logging.basicConfig(format='%(levelname)s %(message)s', level=logging.DEBUG)
 
-    if len(sys.argv) < 2 and "LDAP_URI" not in os.environ:
-        logging.error("Please specify the URI of the LDAP server to connect to.")
-        sys.exit(2)
-    elif 'LDAP_URI' in os.environ:
-        directory = os.environ['LDAP_URI']
-    else:
-        directory = sys.argv[1]
-    logging.info("--- %s ---" % directory)
-
     unittest.main()
-
-    logging.debug('---')
