@@ -13,11 +13,12 @@ pep8:
 
 test:
 	pip install --user -r requirements.txt
+	pip install --user -r requirements-dev.txt
 	python -m tox
 
-tox:
-	pip install --user tox detox
-	detox
+#tox:
+#	pip install tox detox
+#	detox
 
 coverage:
 	pip install coverage
