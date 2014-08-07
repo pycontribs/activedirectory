@@ -76,7 +76,6 @@ class ActiveDirectory(object):
                         break
             except Exception as e:
                 logging.warning("~/.netrc ignored due to: %s" % e)
-        print(u.port, u.hostname)
 
         self.server = ldap3.Server(host=u.hostname, port=u.port, use_ssl=use_ssl)
         self.conn = ldap3.Connection(self.server,
@@ -376,14 +375,24 @@ class ActiveDirectoryTestCase(unittest.TestCase):
     def setUp(self):
         self.size_limit = 5
         self.paged_size = 2
-        self.time_limit = 60
+        self.time_limit = 10
 
-        self.ad = ActiveDirectory("ldaps://sorintest.cloudapp.net",
-                                  dn='john.doe',
+        """
+        To prevent scanners from detecting and hammering the server we do not use standard ports. Even so the credentials below are just for a single limited test user.
+
+        389 -> 10389
+        636 -> 10636 or 8443 ?
+        3268 -> 13268
+        3269 -> 13269
+        """
+        self.ad = ActiveDirectory("ldap://sorintest.cloudapp.net:10389",
+        #self.ad = ActiveDirectory("ldaps://sorintest.cloudapp.net:8443",
+                                  dn='john.doe@AD.SBARNEA.COM',
                                   secret='a3sv42vAS2vl',
-                                  size_limit=self.size_limit,
-                                  paged_size=self.paged_size,
-                                  time_limit=self.time_limit)
+                                  #size_limit=self.size_limit,
+                                  #paged_size=self.paged_size,
+                                  #time_limit=self.time_limit
+                                  )
 
     def test_get_name(self):
         name = self.ad.get_name('john.doe')
@@ -398,10 +407,10 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         self.assertEqual(self.ad.get_email('xcxsfscbr33g'), None)
 
     def test_get_email(self):
-        self.assertEqual(self.ad.get_email('noreply@citrix.com'), 'noreply@citrix.com')
+        self.assertEqual(self.ad.get_email('john.doe'), 'john.doe@AD.SBARNEA.COM')
 
     def test_get_manager(self):
-        self.assertEqual(self.ad.get_manager('svcacct_scale'), 'benha')
+        self.assertEqual(self.ad.get_manager('john.doe'), 'god')
 
     def test_get_users(self):
         users = self.ad.get_users()
@@ -416,20 +425,20 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         self.assertEqual(x, None)
 
     def test_is_user_enabled(self):
-        self.assertTrue(self.ad.is_user_enabled('sorins'))
+        self.assertTrue(self.ad.is_user_enabled('john.doe'))
 
     def test_is_user_enabled_non_existing(self):
         self.assertTrue(self.ad.is_user_enabled('sdsECGCCgcreRHdrsrdhd') is None)
 
     def test_get_attributes(self):
-        user = self.ad.get_attributes(user='sorins')
-        self.assertEqual(user['displayName'], u'Sorin Sbârnea')
-        self.assertEqual(user['name'], u'Sorin Sbârnea')
+        user = self.ad.get_attributes(user='john.doe')
+        self.assertEqual(user['displayName'], u'John Doe')
+        self.assertEqual(user['name'], u'John Doe')
 
-    def test_get_attributes_multiple(self):
-        user = self.ad.get_attributes(user='adm_gregsl')
-        self.assertEqual(user['displayName'], u'Sorin Sbârnea')
-        self.assertEqual(user['name'], u'Sorin Sbârnea')
+    #def test_get_attributes_multiple(self):
+    #    user = self.ad.get_attributes(user='adm_gregsl')
+    #    self.assertEqual(user['displayName'], u'Sorin Sbârnea')
+    #    self.assertEqual(user['name'], u'Sorin Sbârnea')
 
 
 if __name__ == "__main__":
