@@ -35,6 +35,7 @@ git diff
         exit 1
     fi
 
+pep8
 
 echo "Please don't run this as a user. This generates a new release for PyPI. Press ^C to exit or Enter to continue."
 read

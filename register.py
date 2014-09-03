@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-#import pandoc
+# import pandoc
 import os
 import logging
 
-#pandoc.core.PANDOC_PATH = 'python -m pandoc'
+# pandoc.core.PANDOC_PATH = 'python -m pandoc'
 
 try:
     import pypandoc
