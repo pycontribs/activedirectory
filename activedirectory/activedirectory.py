@@ -2,17 +2,33 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from __future__ import print_function
-import ConfigParser
 import logging
 import os
+import sys
 import traceback
 import types
 import unittest
 from collections import defaultdict
-from urlparse import urlparse
 import ldap3
 from ldap3.utils.conv import escape_bytes
 from ldap3.protocol.rfc4511 import SearchRequest, ValsAtLeast1, Scope, Integer0ToMax, TypesOnly, Filter, AttributeSelection, Selector, EqualityMatch
+try:
+    import configparser
+except:
+    from six.moves import configparser
+try:
+    from urlparse import urlparse
+except:
+    from urllib.parse import urlparse
+
+
+if len(sys.argv) < 2 and not "LDAP_URI" in os.environ:
+    logging.error("Please specify the URI of the LDAP server to connect to.")
+    sys.exit(2)
+elif 'LDAP_URI' in os.environ:
+    directory = os.environ['LDAP_URI']
+else:
+    directory = sys.argv[1]
 
 
 class ActiveDirectory(object):
@@ -53,36 +69,73 @@ class ActiveDirectory(object):
         self.secret = secret
         self.base = base
 
+
+        # See https://www.centos.org/docs/5/html/CDS/ag/8.0/LDAP_URLs-Examples_of_LDAP_URLs.html
         u = urlparse(url)
         if u.scheme == 'ldaps':
             use_ssl = True
         else:
             use_ssl = False
 
+        if u.path:
+            if base:
+                logging.warning("Path (search base) from URI ignored because 'base' parameter was specified.")
+            else:
+                self.base = u.path[1:]
+
+        #if not hasattr(u, 'port') or u.port is None:
+        if use_ssl:
+            port = 636
+        else:
+            port = 389
+
+        if hasattr(u, 'port') and u.port:
+            port = u.port
+
         if ":" in u.hostname:
-            u.hostname = u.hostname.split(":")[0]
+            u.hostname, port = u.hostname.split(":")[0:1]
+            port = int(port)
+
         if dn is None:
-            import netrc
-            netrc_config = netrc.netrc()
+            try:
+                import netrc
+                netrc_config = netrc.netrc()
+            except Exception as e:
+                logging.error("netrc failure (py26 version is broken)  %s" % e)
+                sys.exit(2)
             for h in netrc_config.hosts:
                 if h == u.hostname:
                     dn, account, secret = netrc_config.authenticators(h)
                     break
 
-        self.server = ldap3.Server(host=u.hostname, port=u.port, use_ssl=use_ssl)
+        logging.info("host=%s port=%s use_ssl=%s dn=%s base=%s" % (u.hostname, port, use_ssl, dn, self.base))
+        self.server = ldap3.Server(host=u.hostname, port=port, use_ssl=use_ssl)
+        print(dn, account, secret, self.server)
+
         self.conn = ldap3.Connection(self.server,
                                      auto_bind=True,
-                                     client_strategy=ldap3.STRATEGY_SYNC,
+                                     client_strategy=ldap3.STRATEGY_SYNC, # blocks on 389 on citrite, even with timeout set!?
+                                     #client_strategy=ldap3.STRATEGY_ASYNC_THREADED, # also blocks
+                                     #client_strategy=ldap3.STRATEGY_SYNC_RESTARTABLE,
+                                     #client_strategy=ldap3.STRATEGY_LDIF_PRODUCER, # seems to connect but is useless, as it gives later: 'LDIF-CONTENT cannot be produced for Search Operations'
+                                     #client_strategy=ldap3.STRATEGY_REUSABLE_THREADED,
                                      user=dn,
                                      password=secret,
-                                     authentication=ldap3.AUTH_SIMPLE)
-        try:
-            ret = self.conn.bind()
-            #ret = self.conn.simple_bind_s(self.dn, self.secret)
-        except Exception, e:
-            self.logger.error(e)
-        else:
-            self._connected = True
+                                     authentication=ldap3.AUTH_SIMPLE,
+                                     raise_exceptions=True,
+                                     #authentication=ldap3.AUTH_SASL,
+                                    )
+
+        # try:
+        #     ret = self.conn.bind()
+        #     #ret = self.conn.simple_bind_s(self.dn, self.secret)
+        # except Exception as e:
+        #     self.logger.error(e)
+        #     sys.exit(6)
+        # else:
+        #     self._connected = True
+        #print("3")
+
 
     def __bool__(self):
         return self._connected
@@ -94,9 +147,9 @@ class ActiveDirectory(object):
     def check_credentials(url, dn, secret, base=""):
         raise NotImplementedError()
 
-    def __del__(self):
-        if self.conn:
-            self.conn.unbind()
+    #def __del__(self):
+    #    if self.conn:
+    #        self.conn.unbind()
 
     def search_ext_s(self, filterstr=None, attrlist=ldap3.ALL_ATTRIBUTES, base=None, scope=None):
         """
@@ -119,6 +172,11 @@ class ActiveDirectory(object):
             size_limit=self.size_limit,
             time_limit=self.time_limit
         )
+
+        if not self.conn.result:
+            #self.conn.raise_exceptions
+            raise IOError("Search didn't return anything.")
+
         if self.conn.result['description'] == 'sizeLimitExceeded' or 'controls' not in self.conn.result:
             logging.error("sizeLimitExceeded")
             cookie = None
@@ -266,13 +324,13 @@ class ActiveDirectory(object):
         self.logger.debug("%s : %s" % (filter, attributes))
         r = self.search_ext_s(filterstr=filter, attrlist=attributes)
         if not r:
-            return None
+            return {}
 
         if len(r) != 1:
             raise NotImplementedError("getAttributes does not support returning values for multiple ldap objects")
 
         # print(r[0])
-        return r[0]['attributes']
+        return self.__compress_attributes(r[0]['attributes'])
 
     def get_attribute(self, attribute='sAMAccountName', user=None, email=None, name=None, dn=None):
         """
@@ -370,14 +428,21 @@ class ActiveDirectoryTestCase(unittest.TestCase):
     def setUp(self):
         self.size_limit = 5
         self.paged_size = 2
-        self.time_limit = 60
+        self.time_limit = 10
+        global directory
         # "ldap://ldap.forumsys.com:389", "cn=read-only-admin,dc=example,dc=com", "password"
 
         #directory = "ldap://ldap.forumsys.com:389"
+        #directory = "ldaps://lonpdc01.citrite.net:3269/dc=citrite,dc=net"
         #self.ad = ActiveDirectory(directory, dn='cn=read-only-admin,dc=example,dc=com', secret='password', size_limit=50)
-        self.ad = ActiveDirectory("ldaps://lonpdc01.citrite.net:3269/citrite,dc=net", size_limit=self.size_limit, paged_size=self.paged_size, time_limit=self.time_limit)
+        #self.ad = ActiveDirectory("ldaps://lonpdc01.citrite.net:3269/citrite,dc=net", size_limit=self.size_limit, paged_size=self.paged_size, time_limit=self.time_limit)
+        logging.info("connecting to %s" % directory)
 
-        #self.ad = ActiveDirectory("ldaps://pycontribs.onmicrosoft.com:3269", dn="john@pycontribs.onmicrosoft.com", secret="Gunu4138", size_limit=2)
+        try:
+           self.ad = ActiveDirectory(directory, size_limit=self.size_limit, paged_size=self.paged_size, time_limit=self.time_limit)
+           #self.ad = ActiveDirectory("ldaps://pycontribs.onmicrosoft.com:3269", dn="john@pycontribs.onmicrosoft.com", secret="Gunu4138", size_limit=2)
+        except Exception as e:
+            raise Exception("that's fatal: %s while trying to connect to %s" % (e, directory))
 
     def test_get_name(self):
         name = self.ad.get_name('sorins')
@@ -420,20 +485,34 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         self.assertEqual(user['displayName'], u'Sorin Sbârnea')
         self.assertEqual(user['name'], u'Sorin Sbârnea')
 
+    def test_get_attributes_multiple(self):
+        user = self.ad.get_attributes(user='adm_gregsl')
+        self.assertEqual(user['displayName'], u'Sorin Sbârnea')
+        self.assertEqual(user['name'], u'Sorin Sbârnea')
+
+
+
 if __name__ == "__main__":
     import sys
-
-    logging.basicConfig(format='%(levelname)s %(message)s', level=logging.DEBUG)
-
-    if len(sys.argv) < 2 and not "LDAP_URI" in os.environ:
-        logging.error("Please specify the URI of the LDAP server to connect to.")
-        sys.exit(2)
-    elif 'LDAP_URI' in os.environ:
-        directory = os.environ['LDAP_URI']
-    else:
-        directory = sys.argv[1]
+    #import py
     logging.info("--- %s ---" % directory)
 
-    unittest.main()
+    size_limit = 5
+    paged_size = 2
+    time_limit = 20
+    logging.basicConfig(format='%(levelname)s %(message)s', level=logging.DEBUG)
+
+    #directory = "ldap://lonpdc01.citrite.net:3268/dc=citrite,dc=net"
+    try:
+        ad = ActiveDirectory(directory, size_limit=size_limit, paged_size=paged_size)
+    except Exception as e:
+        raise Exception("that's fatal: %s while trying to connect to %s" % (e, directory))
+
+    #ad = ActiveDirectory("ldap://lonpdc01.citrite.net/dc=citrite,dc=net", size_limit=size_limit, paged_size=paged_size)
+    #ad = ActiveDirectory("ldaps://lonpdc01.citrite.net/dc=citrite,dc=net", size_limit=size_limit, paged_size=paged_size, time_limit=time_limit)
+    #ad = ActiveDirectory("ldap://lonpdc01.citrite.net:3268/dc=citrite,dc=net", size_limit=size_limit, paged_size=paged_size, time_limit=time_limit)
+    #ad = ActiveDirectory("ldaps://lonpdc01.citrite.net:3269/dc=citrite,dc=net", size_limit=size_limit, paged_size=paged_size, time_limit=time_limit)
+
+    #unittest.main()
 
     logging.debug('---')
