@@ -1,0 +1,2 @@
+#!/bin/bash
+python -m py.test --cov-report xml --cov jira --pyargs jira

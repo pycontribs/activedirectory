@@ -1,3 +1,6 @@
+# Possible symlink to dev version of python3-ldap dependency
+activedirectory/ldap3/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

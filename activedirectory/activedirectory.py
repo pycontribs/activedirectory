@@ -7,6 +7,7 @@ import os
 import traceback
 import types
 import unittest
+import socket
 from collections import defaultdict
 import ldap3
 from ldap3.utils.conv import escape_bytes
@@ -19,6 +20,7 @@ try:
     from urlparse import urlparse
 except:
     from urllib.parse import urlparse
+
 
 class ActiveDirectory(object):
 
@@ -80,6 +82,7 @@ class ActiveDirectory(object):
         self.server = ldap3.Server(host=u.hostname, port=u.port, use_ssl=use_ssl)
         self.conn = ldap3.Connection(self.server,
                                      auto_bind=True,
+                                     # client_strategy=ldap3.STRATEGY_REUSABLE_THREADED, # .STRATEGY_SYNC,
                                      client_strategy=ldap3.STRATEGY_SYNC,
                                      user=dn,
                                      password=secret,
@@ -101,7 +104,7 @@ class ActiveDirectory(object):
     def check_credentials(url, dn, secret, base=""):
         raise NotImplementedError()
 
-    #def __del__(self):
+    # def __del__(self):
     #    if self.conn:
     #        self.conn.unbind()
 
@@ -117,7 +120,7 @@ class ActiveDirectory(object):
         if scope is None:
             scope = self.scope
 
-        self.conn.search(
+        print(self.conn.search(
             search_base=base,
             search_filter=filterstr,
             search_scope=scope,
@@ -125,7 +128,8 @@ class ActiveDirectory(object):
             paged_size=self.paged_size,
             size_limit=self.size_limit,
             time_limit=self.time_limit
-        )
+        ))
+        print(self.conn.result)
         if self.conn.result['description'] == 'sizeLimitExceeded' or 'controls' not in self.conn.result:
             logging.error("sizeLimitExceeded")
             cookie = None
@@ -385,13 +389,20 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         3268 -> 13268
         3269 -> 13269
         """
-        self.ad = ActiveDirectory("ldap://sorintest.cloudapp.net:10389",
-        #self.ad = ActiveDirectory("ldaps://sorintest.cloudapp.net:8443",
+
+        test_server = 'sorintest.cloudapp.net'
+        test_port = 10389
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex((test_server, test_port))
+        if result != 0:
+            raise Exception("Cannot connect to LDAP server %s:%s: Error %s" % (test_server, test_port, result))
+
+        self.ad = ActiveDirectory("ldap://%s:%s" % (test_server, test_port),
                                   dn='john.doe@AD.SBARNEA.COM',
                                   secret='a3sv42vAS2vl',
-                                  #size_limit=self.size_limit,
-                                  #paged_size=self.paged_size,
-                                  #time_limit=self.time_limit
+                                  size_limit=self.size_limit,
+                                  paged_size=self.paged_size,
+                                  time_limit=self.time_limit
                                   )
 
     def test_get_name(self):
@@ -435,7 +446,7 @@ class ActiveDirectoryTestCase(unittest.TestCase):
         self.assertEqual(user['displayName'], u'John Doe')
         self.assertEqual(user['name'], u'John Doe')
 
-    #def test_get_attributes_multiple(self):
+    # def test_get_attributes_multiple(self):
     #    user = self.ad.get_attributes(user='adm_gregsl')
     #    self.assertEqual(user['displayName'], u'Sorin Sbârnea')
     #    self.assertEqual(user['name'], u'Sorin Sbârnea')
