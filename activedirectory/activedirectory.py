@@ -120,7 +120,7 @@ class ActiveDirectory(object):
         if scope is None:
             scope = self.scope
 
-        print(self.conn.search(
+        self.conn.search(
             search_base=base,
             search_filter=filterstr,
             search_scope=scope,
@@ -128,8 +128,7 @@ class ActiveDirectory(object):
             paged_size=self.paged_size,
             size_limit=self.size_limit,
             time_limit=self.time_limit
-        ))
-        print(self.conn.result)
+        )
         if self.conn.result['description'] == 'sizeLimitExceeded' or 'controls' not in self.conn.result:
             logging.error("sizeLimitExceeded")
             cookie = None
@@ -249,12 +248,18 @@ class ActiveDirectory(object):
         result = {}
         for k, v in dic.iteritems():
             if isinstance(v, types.ListType) and len(v) == 1:
-                if k not in ('msExchMailboxSecurityDescriptor', 'msExchSafeSendersHash',
+                if k not in ('msExchMailboxSecurityDescriptor', 'msExchSafeSendersHash', 'msExchBlockedSendersHash',
+                             'replicationSignature', 'msExchSafeRecipientsHash', 'sIDHistory',
+                             'msRTCSIP-UserRoutingGroupId', 'mSMQDigests', 'mSMQSignCertificates',
+                             'msExchMasterAccountSid', 'msExchPreviousAccountSid', 'msExchUMPinChecksum',
+                             'userSMIMECertificate', 'userCertificate', 'userCert',
+                             'msExchDisabledArchiveGUID', 'msExchUMPinChecksum', 'msExchUMSpokenName',
                              'objectSid', 'objectGUID', 'msExchArchiveGUID', 'thumbnailPhoto', 'msExchMailboxGuid'):
                     try:
                         result[k] = v[0].decode('utf-8')
                     except Exception as e:
-                        print("FAILED: %s : %s -- %s" % (k, v[0], e))
+                        logging. error("Failed to decode attibuteAILED: %s -- %s" % (k, e))
+                        result[k] = v[0]
         return result
 
     def get_attributes(self, attributes=None, user=None, email=None, name=None):
