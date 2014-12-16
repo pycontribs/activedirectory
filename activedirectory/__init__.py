@@ -6,7 +6,7 @@ __copyright__ = "Copyright 2014, Sorin Sbarnea"
 __email__ = "sorin(dot)sbarnea(at)gmail.com"
 __status__ = "Production"
 from . import version
-__date__ = "2014-07-07"
+__date__ = "2014-12-16"
 __all__ = ['version']
 
 import sys

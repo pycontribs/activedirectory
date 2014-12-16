@@ -82,6 +82,7 @@ setup(
     version=__version__,
     zip_safe=False,
     description='Easiest way to interact with ActiveDirectory / AD / LDAP Servers from Python, pure python approach.',
+    long_description=open("README.rst").read(),
     author='Sorin Sbarnea',
     author_email='sorin.sbarnea@gmail.com',
     maintainer='Sorin Sbarnea',
@@ -106,7 +107,6 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Internet',
     ],
-    long_description=open('README.md').read(),
     setup_requires=['six', 'tox', 'python3-ldap'],  # ,'nosexcover'],
     tests_require=test_requirements,  # autopep8 removed because it does not install on python2.5
     test_suite=test_suite,
