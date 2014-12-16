@@ -9,3 +9,5 @@ wheel
 Sphinx
 autopep8
 pep8
+pip>=1.4
+setuptools>=0.8
