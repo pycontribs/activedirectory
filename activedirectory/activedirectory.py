@@ -198,10 +198,10 @@ class ActiveDirectory(object):
         return result
 
     def get_users(self, new_filter=None):
-        if new_filter:
-            filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)(mail=*)%s)" % (self.filter, new_filter)
-        else:
-            filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)(mail=*))" % self.filter
+        # removed (mail=*) filter form default set
+        if not new_filter:
+            new_filter =""
+        filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)%s)" % (self.filter, new_filter)
         rets = []
         for x in self.search_ext_s(filterstr=filter, attrlist=["sAMAccountName"]):
             # if ret and ret[0] and isinstance(ret[0][1], dict):
