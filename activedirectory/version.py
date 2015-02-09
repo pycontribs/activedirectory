@@ -1,3 +1,3 @@
 #!/usr/bin/env python
-__version__ = "0.10"
-__date__ = "2013-01-16"
+__version__ = "0.12"
+__date__ = "2015-02-09"

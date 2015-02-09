@@ -8,7 +8,9 @@ import traceback
 import types
 import unittest
 import socket
+import sys
 from collections import defaultdict
+from collections import OrderedDict
 import ldap3
 from ldap3.utils.conv import escape_bytes
 from ldap3.protocol.rfc4511 import SearchRequest, ValsAtLeast1, Scope, Integer0ToMax, TypesOnly, Filter, AttributeSelection, Selector, EqualityMatch
@@ -58,9 +60,14 @@ class ActiveDirectory(object):
 
         self.dn = dn
         self.secret = secret
-        self.base = base
 
         u = urlparse(url)
+
+        if base:
+            self.base = base
+        else:
+            self.base = u.path[1:]
+
         if u.scheme == 'ldaps':
             use_ssl = True
         else:
@@ -73,7 +80,7 @@ class ActiveDirectory(object):
             try:
                 netrc_config = netrc.netrc()
                 for h in netrc_config.hosts:
-                    if h == u.hostname:
+                    if h.lower() == u.hostname.lower():
                         dn, account, secret = netrc_config.authenticators(h)
                         break
             except Exception as e:
@@ -120,6 +127,7 @@ class ActiveDirectory(object):
         if scope is None:
             scope = self.scope
 
+        logging.debug("search_ext_s(%s, %s, %s, %s)" % (filterstr, attrlist, base, scope))
         self.conn.search(
             search_base=base,
             search_filter=filterstr,
@@ -202,11 +210,12 @@ class ActiveDirectory(object):
         if not new_filter:
             new_filter =""
         filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)%s)" % (self.filter, new_filter)
-        rets = []
+        rets = OrderedDict()
         for x in self.search_ext_s(filterstr=filter, attrlist=["sAMAccountName"]):
             # if ret and ret[0] and isinstance(ret[0][1], dict):
-            rets.append(x['attributes']["sAMAccountName"][0])
-        return sorted(set(rets))
+            username = x['attributes']["sAMAccountName"][0]
+            rets[username] = self.__compress_attributes(x['attributes'])
+        return rets
 
     def get_groups(self):
         """
@@ -215,9 +224,13 @@ class ActiveDirectory(object):
         """
         filter = "(&(objectCategory=group)(mail=*))"
         rets = []
-        for x in self.search_ext_s(filter_str=filter, attrlist=["sAMAccountName"]):
+        for x in self.search_ext_s(filterstr=filter, attrlist=["sAMAccountName"]):
             # if ret and ret[0] and isinstance(ret[0][1], dict):
-            rets.append(x[1].get("sAMAccountName")[0])
+            #print(x)
+            try:
+                rets.append(x['attributes']["sAMAccountName"][0])
+            except Exception as e:
+                logging.error("%s: %s" % (e, x))
         return sorted(rets)
 
     def get_manager_attributes(self, user):
