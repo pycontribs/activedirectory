@@ -1,5 +1,4 @@
 [pep8]
-exclude=build,lib,.tox,third,*.egg,docs,packages
 ;filename=
 ;select
 ignore=E501 scripts

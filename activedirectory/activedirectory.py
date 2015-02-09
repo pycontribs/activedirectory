@@ -207,7 +207,7 @@ class ActiveDirectory(object):
     def get_users(self, new_filter=None):
         # removed (mail=*) filter form default set
         if not new_filter:
-            new_filter =""
+            new_filter = ""
         filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)%s)" % (self.filter, new_filter)
         rets = OrderedDict()
         for x in self.search_ext_s(filterstr=filter, attrlist=["sAMAccountName"]):
@@ -225,7 +225,7 @@ class ActiveDirectory(object):
         rets = []
         for x in self.search_ext_s(filterstr=filter, attrlist=["sAMAccountName"]):
             # if ret and ret[0] and isinstance(ret[0][1], dict):
-            #print(x)
+            # print(x)
             try:
                 rets.append(x['attributes']["sAMAccountName"][0])
             except Exception as e:
