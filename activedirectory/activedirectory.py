@@ -127,7 +127,6 @@ class ActiveDirectory(object):
         if scope is None:
             scope = self.scope
 
-        logging.debug("search_ext_s(%s, %s, %s, %s)" % (filterstr, attrlist, base, scope))
         self.conn.search(
             search_base=base,
             search_filter=filterstr,
