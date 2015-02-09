@@ -204,13 +204,14 @@ class ActiveDirectory(object):
             result[user] = manager
         return result
 
-    def get_users(self, new_filter=None):
+    def get_users(self, new_filter=None, attrlist=ldap3.ALL_ATTRIBUTES):
         # removed (mail=*) filter form default set
+        # attrlist default used to be ["sAMAccountName"] instead of all.
         if not new_filter:
             new_filter = ""
         filter = "(&%s(sAMAccountName=*)(samAccountType=805306368)%s)" % (self.filter, new_filter)
         rets = OrderedDict()
-        for x in self.search_ext_s(filterstr=filter, attrlist=["sAMAccountName"]):
+        for x in self.search_ext_s(filterstr=filter, attrlist=attrlist):
             # if ret and ret[0] and isinstance(ret[0][1], dict):
             username = x['attributes']["sAMAccountName"][0]
             rets[username] = self.__compress_attributes(x['attributes'])
