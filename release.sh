@@ -8,7 +8,7 @@ echo Preparing to release version $VERSION
 #source tox
 
 #pip install --upgrade pep8 autopep8 docutils
-python -m autopep8 --ignore=E501 -i *.py activedirectory/*.py 
+python -m autopep8 --ignore=E501 --recursive -i *.py activedirectory/*.py 
 
 echo === Testings ===
 #if ! python setup.py test; then
