@@ -271,7 +271,7 @@ class ActiveDirectory(object):
                     try:
                         result[k] = v[0].decode('utf-8')
                     except Exception as e:
-                        logging. error("Failed to decode attibuteAILED: %s -- %s" % (k, e))
+                        logging. error("Failed to decode attribute: %s -- %s" % (k, e))
                         result[k] = v[0]
         return result
 
