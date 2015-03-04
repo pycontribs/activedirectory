@@ -1,4 +1,4 @@
-# Possible symlink to dev version of python3-ldap dependency
+# Possible symlink to dev version of ldap3 dependency
 activedirectory/ldap3/
 
 # Byte-compiled / optimized / DLL files

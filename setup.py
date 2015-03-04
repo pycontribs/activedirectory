@@ -107,7 +107,8 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Internet',
     ],
-    setup_requires=['six', 'tox', 'python3-ldap'],  # ,'nosexcover'],
+    setup_requires=['six', 'tox', 'ldap3'],  # ,'nosexcover'],
+    install_requires=['six', 'ldap3'],
     tests_require=test_requirements,  # autopep8 removed because it does not install on python2.5
     test_suite=test_suite,
     cmdclass={'test': Tox},
