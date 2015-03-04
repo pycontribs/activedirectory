@@ -6,7 +6,7 @@ install:
 	python setup.py install
 
 uninstall:
-	pip uninstall python3-ldap
+	pip uninstall ldap3
 
 pep8:
 	py.test --pep8 -m pep8
@@ -26,7 +26,7 @@ coverage:
 
 travis:
 	pip install coveralls
-	coverage run --source=python3-ldap runtests.py
+	coverage run --source=ldap3 runtests.py
 
 pypi:
 	python setup.py check --restructuredtext --strict
